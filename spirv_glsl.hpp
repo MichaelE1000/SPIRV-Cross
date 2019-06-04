@@ -669,6 +669,11 @@ protected:
 	void fixup_type_alias();
 	void reorder_type_alias();
 
+	std::vector<std::vector<uint32_t>> variables_within_scope;
+	void create_new_scope();
+	void close_scope();
+	void add_variable_to_current_scope(uint32_t id);
+
 private:
 	void init();
 };

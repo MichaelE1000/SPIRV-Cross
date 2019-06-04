@@ -199,6 +199,9 @@ void CompilerGLSL::init()
 	if (decimal_point && *decimal_point != '\0')
 		current_locale_radix_character = *decimal_point;
 #endif
+
+	variables_within_scope.clear();
+	variables_within_scope.push_back(std::vector<uint32_t>());
 }
 
 static const char *to_pls_layout(PlsFormat format)
@@ -7051,6 +7054,7 @@ void CompilerGLSL::flush_variable_declaration(uint32_t id)
 	auto *var = maybe_get<SPIRVariable>(id);
 	if (var && var->deferred_declaration)
 	{
+		add_variable_to_current_scope(id);
 		statement(variable_decl_function_local(*var), ";");
 		if (var->allocate_temporary_copy)
 		{
@@ -11675,6 +11679,7 @@ void CompilerGLSL::emit_block_chain(SPIRBlock &block)
 
 void CompilerGLSL::begin_scope()
 {
+	create_new_scope();
 	statement("{");
 	indent++;
 }
@@ -11683,6 +11688,7 @@ void CompilerGLSL::end_scope()
 {
 	if (!indent)
 		SPIRV_CROSS_THROW("Popping empty indent stack.");
+	close_scope();
 	indent--;
 	statement("}");
 }
@@ -12008,4 +12014,31 @@ void CompilerGLSL::emit_line_directive(uint32_t file_id, uint32_t line_literal)
 		require_extension_internal("GL_GOOGLE_cpp_style_line_directive");
 		statement_no_indent("#line ", line_literal, " \"", get<SPIRString>(file_id).str, "\"");
 	}
+}
+
+void CompilerGLSL::create_new_scope()
+{
+	variables_within_scope.push_back(std::vector<uint32_t>());
+}
+
+void CompilerGLSL::close_scope()
+{
+	if (variables_within_scope.size() > 0)
+	{
+		auto variables_within_current_scope = variables_within_scope.back();
+		variables_within_scope.pop_back();
+		for (auto& variable_id : variables_within_current_scope)
+		{
+			auto* var = maybe_get<SPIRVariable>(variable_id);
+			if (var)
+			{
+				var->deferred_declaration = true;
+			}
+		}
+	}
+}
+
+void CompilerGLSL::add_variable_to_current_scope(uint32_t id)
+{
+	variables_within_scope.back().push_back(id);
 }
